@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Big Fish Eats Little Fish</title>
+
+    <!-- ✅ PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#003d5c">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Fish Game">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700&display=swap');
+        body { margin: 0; overflow: hidden; font-family: 'Nunito', sans-serif; touch-action: none; }
+        .ocean-gradient { background: linear-gradient(180deg, #006994 0%, #003d5c 40%, #001f3f 100%); }
+        .title-font { font-family: 'Fredoka One', cursive; }
+        .glass-panel {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 8px 32px 0 rgba(0,0,0,0.37);
+        }
+        .fish-glow { filter: drop-shadow(0 0 10px rgba(255,215,0,0.5)); }
+        #gameCanvas { cursor: none; }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+        .pulse-btn { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.05);} }
+
+        /* PWA install banner */
+        #installBanner {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 100; display: none; white-space: nowrap;
+        }
+    </style>
+</head>
+<body class="ocean-gradient h-screen w-screen relative">
+
+    <canvas id="gameCanvas" class="absolute inset-0 z-10"></canvas>
+
+    <!-- Score -->
+    <div id="scoreBoard" class="absolute top-4 left-4 z-20 hidden">
+        <div class="glass-panel rounded-2xl px-6 py-3 text-white">
+            <div class="text-sm opacity-80 font-bold tracking-wider uppercase">Score</div>
+            <div id="scoreValue" class="text-4xl title-font text-yellow-400">0</div>
+        </div>
+    </div>
+
+    <!-- Size Bar -->
+    <div id="sizeBar" class="absolute top-4 right-4 z-20 hidden">
+        <div class="glass-panel rounded-2xl px-4 py-3 text-white w-40">
+            <div class="text-xs opacity-80 font-bold tracking-wider uppercase mb-1">Size</div>
+            <div class="w-full bg-white bg-opacity-20 rounded-full h-3">
+                <div id="sizeBarFill" class="h-3 rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-all duration-300" style="width:10%"></div>
+            </div>
+            <div id="sizeLabel" class="text-xs text-yellow-300 mt-1 font-bold">Baby Fish 🐣</div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="startScreen" class="absolute inset-0 z-30 flex items-center justify-center fade-in">
+        <div class="glass-panel rounded-3xl p-8 md:p-12 max-w-md w-full mx-4 text-center">
+            <div class="mb-4 text-7xl">🐠</div>
+            <h1 class="text-4xl md:text-5xl title-font text-white mb-3">
+                Big Fish Eats<br><span class="text-yellow-400">Little Fish</span>
+            </h1>
+            <p class="text-blue-100 text-base mb-6 leading-relaxed">
+                Move your finger to swim.<br>
+                Eat fish <span class="text-green-300 font-bold">smaller</span> than you to grow!<br>
+                <span class="text-red-300 font-bold">Avoid bigger fish!</span>
+            </p>
+            <button id="startBtn" class="pulse-btn bg-gradient-to-r from-yellow-400 to-orange-500 text-blue-900 font-bold py-4 px-10 rounded-full text-xl shadow-lg w-full mb-3">
+                🎮 Start Game
+            </button>
+            <!-- Install button shown when PWA installable -->
+            <button id="installBtn" class="hidden bg-gradient-to-r from-green-400 to-teal-500 text-white font-bold py-3 px-8 rounded-full text-base shadow-lg w-full">
+                📲 Install as App
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Over -->
+    <div id="gameOverScreen" class="absolute inset-0 z-30 flex items-center justify-center hidden bg-black bg-opacity-50 backdrop-blur-sm">
+        <div class="glass-panel rounded-3xl p-8 max-w-md w-full mx-4 text-center fade-in">
+            <div class="text-6xl mb-3">💀</div>
+            <h2 class="text-4xl title-font text-white mb-2">Eaten!</h2>
+            <p class="text-blue-200 mb-1">Final Score</p>
+            <p id="finalScore" class="text-5xl title-font text-yellow-400 mb-4">0</p>
+            <div class="flex justify-center space-x-3 text-sm text-blue-200 mb-5">
+                <div class="glass-panel px-3 py-2 rounded-lg">🐟 <span id="fishEatenCount">0</span></div>
+                <div class="glass-panel px-3 py-2 rounded-lg">⏱ <span id="survivalTime">0s</span></div>
+                <div class="glass-panel px-3 py-2 rounded-lg">📏 <span id="finalSize">30</span>px</div>
+            </div>
+            <button id="restartBtn" class="w-full bg-gradient-to-r from-blue-400 to-cyan-500 text-white font-bold py-4 rounded-full text-xl shadow-lg">
+                🔄 Play Again
+            </button>
+        </div>
+    </div>
+
+    <!-- PWA bottom install toast -->
+    <div id="installBanner" class="glass-panel rounded-2xl px-5 py-3 text-white text-sm font-bold">
+        📲 Tap <b>Share → Add to Home Screen</b> to install!
+    </div>
+
+    <script>
+    // ─── PWA: Register Service Worker ────────────────────────────────────────────
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('✅ SW registered:', reg.scope))
+                .catch(err => console.log('SW error:', err));
+        });
+    }
+
+    // ─── PWA: Install Prompt ──────────────────────────────────────────────────────
+    let deferredPrompt = null;
+    const installBtn = document.getElementById('installBtn');
+    const installBanner = document.getElementById('installBanner');
+
+    window.addEventListener('beforeinstallprompt', e => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installBtn.classList.remove('hidden'); // Show install button on start screen
+    });
+
+    installBtn.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') installBtn.classList.add('hidden');
+        deferredPrompt = null;
+    });
+
+    // Show iOS hint (no beforeinstallprompt on Safari)
+    const isIOS = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    if (isIOS && !isStandalone) {
+        installBanner.style.display = 'block';
+        setTimeout(() => installBanner.style.display = 'none', 6000);
+    }
+
+    // ─── Canvas Setup ─────────────────────────────────────────────────────────────
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let gameState = 'start';
+    let score = 0, startTime = 0, fishEaten = 0;
+    let animationId, lastTime = 0;
+
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const input = { x: canvas.width / 2, y: canvas.height / 2 };
+    canvas.addEventListener('mousemove', e => { input.x = e.clientX; input.y = e.clientY; });
+    canvas.addEventListener('touchmove', e => {
+        e.preventDefault();
+        input.x = e.touches[0].clientX;
+        input.y = e.touches[0].clientY;
+    }, { passive: false });
+    canvas.addEventListener('touchstart', e => {
+        input.x = e.touches[0].clientX;
+        input.y = e.touches[0].clientY;
+    }, { passive: false });
+
+    const random = (min, max) => Math.random() * (max - min) + min;
+    const COLORS = ['#FF6B6B','#4ECDC4','#45B7D1','#FFA07A','#98D8C8','#F7DC6F','#BB8FCE','#FF9FF3','#54A0FF','#5F27CD'];
+
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x; this.y = y; this.color = color;
+            this.vx = random(-4,4); this.vy = random(-4,4);
+            this.life = 1; this.size = random(3,8);
+            this.decay = random(0.02,0.05);
+        }
+        update() { this.x+=this.vx; this.y+=this.vy; this.vy+=0.1; this.life-=this.decay; }
+        draw() {
+            ctx.save(); ctx.globalAlpha=this.life; ctx.fillStyle=this.color;
+            ctx.beginPath(); ctx.arc(this.x,this.y,this.size*this.life,0,Math.PI*2); ctx.fill(); ctx.restore();
+        }
+        isDead() { return this.life<=0; }
+    }
+
+    class Bubble {
+        constructor() { this.reset(); this.y=random(0,canvas.height); }
+        reset() { this.x=random(0,canvas.width); this.y=canvas.height+20; this.size=random(2,8); this.speed=random(1,3); this.opacity=random(0.1,0.4); this.wobble=random(0,Math.PI*2); }
+        update() { this.y-=this.speed; this.wobble+=0.05; this.x+=Math.sin(this.wobble)*0.5; if(this.y<-20)this.reset(); }
+        draw() {
+            ctx.save(); ctx.globalAlpha=this.opacity;
+            ctx.strokeStyle='rgba(255,255,255,0.8)'; ctx.lineWidth=1;
+            ctx.beginPath(); ctx.arc(this.x,this.y,this.size,0,Math.PI*2); ctx.stroke();
+            ctx.globalAlpha=this.opacity*0.3; ctx.fillStyle='white'; ctx.fill(); ctx.restore();
+        }
+    }
+
+    class Fish {
+        constructor(isPlayer=false) {
+            this.isPlayer=isPlayer; this.tailWiggle=0; this.angle=0;
+            this.mouthAngle=0; this.mouthTarget=0;
+            this.eatAnim=0; this.growAnim=0;
+            if(isPlayer){ this.x=canvas.width/2; this.y=canvas.height/2; this.size=30; this.color='#FFD700'; }
+            else this.init();
+        }
+        init() {
+            const side=Math.floor(random(0,4));
+            switch(side){
+                case 0:this.x=random(0,canvas.width);this.y=-50;this.vx=random(-1,1);this.vy=random(0.5,2);break;
+                case 1:this.x=canvas.width+50;this.y=random(0,canvas.height);this.vx=random(-2,-0.5);this.vy=random(-1,1);break;
+                case 2:this.x=random(0,canvas.width);this.y=canvas.height+50;this.vx=random(-1,1);this.vy=random(-2,-0.5);break;
+                case 3:this.x=-50;this.y=random(0,canvas.height);this.vx=random(0.5,2);this.vy=random(-1,1);break;
+            }
+            this.size=random(8,28); this.color=COLORS[Math.floor(random(0,COLORS.length))]; this.speed=random(0.8,2.5); this.tailWiggle=random(0,Math.PI*2);
+        }
+        update(nearestSmaller) {
+            if(this.isPlayer){
+                const dx=input.x-this.x, dy=input.y-this.y;
+                this.x+=dx*0.08; this.y+=dy*0.08;
+                if(Math.abs(dx)>1||Math.abs(dy)>1) this.angle=Math.atan2(dy,dx);
+                this.tailWiggle+=0.15;
+                if(nearestSmaller!==null&&nearestSmaller<this.size*3.5) this.mouthTarget=Math.min(1,(this.size*3.5-nearestSmaller)/(this.size*2));
+                else this.mouthTarget=0;
+                this.mouthAngle+=(this.mouthTarget-this.mouthAngle)*0.2;
+                if(this.eatAnim>0)this.eatAnim-=0.05;
+                if(this.growAnim>0)this.growAnim-=0.04;
+            } else {
+                this.x+=this.vx*this.speed; this.y+=this.vy*this.speed;
+                this.angle=Math.atan2(this.vy,this.vx); this.tailWiggle+=0.2;
+                if(this.x<-120||this.x>canvas.width+120||this.y<-120||this.y>canvas.height+120)this.init();
+            }
+        }
+        triggerEat(){ this.eatAnim=1; this.growAnim=1; }
+        grow(amount){ this.size=Math.min(this.size+amount,90); }
+        draw(){
+            ctx.save(); ctx.translate(this.x,this.y);
+            const gs=this.isPlayer?1+this.growAnim*0.15:1;
+            ctx.scale(gs,gs); ctx.rotate(this.angle);
+            if(this.isPlayer) this._drawPlayer(); else this._drawEnemy();
+            ctx.restore();
+        }
+        _drawPlayer(){
+            const s=this.size, mA=this.mouthAngle*0.45;
+            ctx.shadowColor=this.eatAnim>0?`rgba(255,200,0,${this.eatAnim})`:'rgba(255,215,0,0.4)';
+            ctx.shadowBlur=this.eatAnim>0?40:18;
+            ctx.fillStyle='#E8940A';
+            const tw=Math.sin(this.tailWiggle)*6;
+            ctx.beginPath(); ctx.moveTo(-s,0); ctx.lineTo(-s*1.9,(-s*0.65)+tw); ctx.lineTo(-s*1.9,(s*0.65)+tw); ctx.closePath(); ctx.fill();
+            const grad=ctx.createRadialGradient(-s*0.2,-s*0.2,0,0,0,s*1.3);
+            grad.addColorStop(0,'#FFE55C'); grad.addColorStop(0.5,'#FFD700'); grad.addColorStop(1,'#FFA500');
+            ctx.fillStyle=grad;
+            if(mA<0.02){
+                ctx.beginPath(); ctx.ellipse(0,0,s*1.2,s*0.75,0,0,Math.PI*2); ctx.fill();
+            } else {
+                ctx.save(); ctx.beginPath(); ctx.moveTo(s*1.2,0); ctx.arc(0,0,s*1.2,-mA,Math.PI+mA,false); ctx.closePath(); ctx.scale(1,0.75); ctx.fill(); ctx.restore();
+                ctx.save(); ctx.beginPath(); ctx.moveTo(s*1.2,0); ctx.arc(0,0,s*1.2,mA,-Math.PI-mA,true); ctx.closePath(); ctx.scale(1,0.75); ctx.fill(); ctx.restore();
+                ctx.save(); ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,s*1.15,-mA,mA,false); ctx.closePath(); ctx.fillStyle='#8B0000'; ctx.scale(1,0.75); ctx.fill(); ctx.restore();
+                ctx.save(); ctx.fillStyle='white';
+                for(let t=0;t<3;t++){ const ta=-mA*0.8+(t/3)*mA*1.6; ctx.beginPath(); ctx.ellipse(Math.cos(ta)*s*1.1,Math.sin(ta)*s*0.75*0.8,s*0.06,s*0.1,ta,0,Math.PI*2); ctx.fill(); }
+                ctx.restore();
+            }
+            ctx.fillStyle='#FFA500';
+            ctx.beginPath(); ctx.moveTo(s*0.2,-s*0.75); ctx.quadraticCurveTo(-s*0.3,-s*1.3,-s*0.5,-s*0.75); ctx.lineTo(s*0.2,-s*0.6); ctx.closePath(); ctx.fill();
+            ctx.fillStyle='white'; ctx.shadowBlur=0;
+            ctx.beginPath(); ctx.arc(s*0.45,-s*0.2,s*0.28,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='#3498DB'; ctx.beginPath(); ctx.arc(s*0.5,-s*0.2,s*0.18,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='black'; ctx.beginPath(); ctx.arc(s*0.53,-s*0.2,s*0.09,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(s*0.56,-s*0.25,s*0.04,0,Math.PI*2); ctx.fill();
+        }
+        _drawEnemy(){
+            const s=this.size, tw=Math.sin(this.tailWiggle)*4;
+            ctx.shadowColor='rgba(0,0,0,0.3)'; ctx.shadowBlur=8;
+            ctx.fillStyle=this._shade(this.color,-30);
+            ctx.beginPath(); ctx.moveTo(-s*0.9,0); ctx.lineTo(-s*1.7,(-s*0.55)+tw); ctx.lineTo(-s*1.7,(s*0.55)+tw); ctx.closePath(); ctx.fill();
+            const bg=ctx.createRadialGradient(-s*0.1,-s*0.15,0,0,0,s*1.1);
+            bg.addColorStop(0,this._shade(this.color,40)); bg.addColorStop(1,this.color);
+            ctx.fillStyle=bg; ctx.beginPath(); ctx.ellipse(0,0,s,s*0.6,0,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle=this._shade(this.color,-20); ctx.globalAlpha=0.9;
+            ctx.beginPath(); ctx.moveTo(s*0.1,-s*0.6); ctx.quadraticCurveTo(-s*0.2,-s*1.0,-s*0.4,-s*0.6); ctx.lineTo(s*0.1,-s*0.5); ctx.closePath(); ctx.fill();
+            ctx.globalAlpha=1;
+            ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(s*0.35,-s*0.15,s*0.22,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='black'; ctx.beginPath(); ctx.arc(s*0.38,-s*0.15,s*0.11,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(s*0.41,-s*0.19,s*0.04,0,Math.PI*2); ctx.fill();
+            if(s>player.size){
+                ctx.save(); ctx.shadowColor='rgba(255,0,0,0.8)'; ctx.shadowBlur=15;
+                ctx.strokeStyle='rgba(255,80,80,0.6)'; ctx.lineWidth=2;
+                ctx.beginPath(); ctx.ellipse(0,0,s*1.15,s*0.75,0,0,Math.PI*2); ctx.stroke(); ctx.restore();
+            }
+        }
+        _shade(color,amt){
+            let r=parseInt(color.slice(1,3),16),g=parseInt(color.slice(3,5),16),b=parseInt(color.slice(5,7),16);
+            return `rgb(${Math.max(0,Math.min(255,r+amt))},${Math.max(0,Math.min(255,g+amt))},${Math.max(0,Math.min(255,b+amt))})`;
+        }
+    }
+
+    class FloatingText {
+        constructor(x,y,text,color='#FFD700'){ this.x=x;this.y=y;this.text=text;this.color=color;this.life=1;this.vy=-2; }
+        update(){ this.y+=this.vy;this.vy*=0.95;this.life-=0.025; }
+        draw(){
+            ctx.save(); ctx.globalAlpha=this.life; ctx.fillStyle=this.color; ctx.strokeStyle='rgba(0,0,0,0.5)'; ctx.lineWidth=3;
+            ctx.font=`bold ${Math.floor(16+(1-this.life)*8)}px Fredoka One,sans-serif`; ctx.textAlign='center';
+            ctx.strokeText(this.text,this.x,this.y); ctx.fillText(this.text,this.x,this.y); ctx.restore();
+        }
+        isDead(){ return this.life<=0; }
+    }
+
+    const player=new Fish(true);
+    const enemies=[], bubbles=[], particles=[], floatingTexts=[];
+    let enemySpawnTimer=0, enemySpawnInterval=60;
+    for(let i=0;i<20;i++){const b=new Bubble();b.y=random(0,canvas.height);bubbles.push(b);}
+
+    function createParticles(x,y,color){ for(let i=0;i<14;i++)particles.push(new Particle(x,y,color)); }
+
+    function checkCollision(a,b){ const dx=a.x-b.x,dy=a.y-b.y; return Math.sqrt(dx*dx+dy*dy)<(a.size+b.size)*0.68; }
+
+    function getNearestSmallerDistance(){
+        let min=Infinity;
+        for(const e of enemies){ if(e.size<player.size){const dx=player.x-e.x,dy=player.y-e.y;const d=Math.sqrt(dx*dx+dy*dy);if(d<min)min=d;} }
+        return min===Infinity?null:min;
+    }
+
+    function getSizeLabel(s){
+        if(s<35)return'Baby Fish 🐣';if(s<45)return'Small Fish 🐟';if(s<55)return'Medium Fish 🐠';
+        if(s<65)return'Big Fish 🐡';if(s<75)return'Huge Fish 🦈';return'MEGA SHARK 🦑';
+    }
+
+    function updateSizeBar(){
+        const pct=Math.min(100,((player.size-30)/60)*100);
+        document.getElementById('sizeBarFill').style.width=Math.max(8,pct)+'%';
+        document.getElementById('sizeLabel').textContent=getSizeLabel(player.size);
+    }
+
+    function gameOver(){
+        gameState='gameover';
+        document.getElementById('gameOverScreen').classList.remove('hidden');
+        document.getElementById('finalScore').textContent=score;
+        document.getElementById('fishEatenCount').textContent=fishEaten;
+        document.getElementById('survivalTime').textContent=Math.floor((Date.now()-startTime)/1000)+'s';
+        document.getElementById('finalSize').textContent=Math.floor(player.size);
+        document.getElementById('scoreBoard').classList.add('hidden');
+        document.getElementById('sizeBar').classList.add('hidden');
+    }
+
+    function resetGame(){
+        score=0;fishEaten=0;startTime=Date.now();
+        enemies.length=0;particles.length=0;floatingTexts.length=0;
+        player.x=canvas.width/2;player.y=canvas.height/2;player.size=30;
+        player.mouthAngle=0;player.eatAnim=0;player.growAnim=0;
+        enemySpawnInterval=60;
+        document.getElementById('scoreValue').textContent='0';
+        document.getElementById('scoreBoard').classList.remove('hidden');
+        document.getElementById('sizeBar').classList.remove('hidden');
+        updateSizeBar();
+        gameState='playing';
+    }
+
+    let lightRayPhase=0;
+    function drawBackground(){
+        const bg=ctx.createLinearGradient(0,0,0,canvas.height);
+        bg.addColorStop(0,'#006994');bg.addColorStop(0.4,'#003d5c');bg.addColorStop(1,'#001020');
+        ctx.fillStyle=bg;ctx.fillRect(0,0,canvas.width,canvas.height);
+        lightRayPhase+=0.005;
+        for(let i=0;i<5;i++){
+            const rx=(canvas.width*0.2*i)+Math.sin(lightRayPhase+i)*60;
+            const grad=ctx.createLinearGradient(rx,0,rx+80,canvas.height*0.7);
+            grad.addColorStop(0,'rgba(100,200,255,0.06)');grad.addColorStop(1,'rgba(100,200,255,0)');
+            ctx.fillStyle=grad;ctx.beginPath();ctx.moveTo(rx,0);ctx.lineTo(rx+80,0);ctx.lineTo(rx+200,canvas.height*0.7);ctx.lineTo(rx+80,canvas.height*0.7);ctx.closePath();ctx.fill();
+        }
+        ctx.fillStyle='#001830';ctx.beginPath();ctx.moveTo(0,canvas.height);
+        for(let x=0;x<=canvas.width;x+=40)ctx.lineTo(x,canvas.height-15-Math.sin(x*0.03)*10);
+        ctx.lineTo(canvas.width,canvas.height);ctx.closePath();ctx.fill();
+    }
+
+    function gameLoop(timestamp){
+        animationId=requestAnimationFrame(gameLoop);
+        drawBackground();
+        bubbles.forEach(b=>{b.update();b.draw();});
+
+        if(gameState==='playing'){
+            enemySpawnTimer++;
+            if(enemySpawnTimer>enemySpawnInterval){enemies.push(new Fish(false));enemySpawnTimer=0;if(enemySpawnInterval>20)enemySpawnInterval-=0.08;}
+            player.update(getNearestSmallerDistance());
+            for(let i=enemies.length-1;i>=0;i--){
+                const e=enemies[i];e.update(null);
+                if(checkCollision(player,e)){
+                    if(player.size>e.size){
+                        const pts=Math.floor(e.size);score+=pts;fishEaten++;
+                        document.getElementById('scoreValue').textContent=score;
+                        player.grow(e.size*0.18);player.triggerEat();updateSizeBar();
+                        createParticles(e.x,e.y,e.color);
+                        floatingTexts.push(new FloatingText(e.x,e.y-20,`+${pts}`));
+                        enemies.splice(i,1);
+                    } else if(e.size>player.size*1.05){
+                        createParticles(player.x,player.y,'#FFD700');gameOver();return;
+                    }
+                }
+            }
+            enemies.sort((a,b)=>a.size-b.size);
+            enemies.forEach(e=>e.draw());
+            player.draw();
+            for(let i=particles.length-1;i>=0;i--){particles[i].update();particles[i].draw();if(particles[i].isDead())particles.splice(i,1);}
+            for(let i=floatingTexts.length-1;i>=0;i--){floatingTexts[i].update();floatingTexts[i].draw();if(floatingTexts[i].isDead())floatingTexts.splice(i,1);}
+        }
+        if(gameState==='gameover'){enemies.forEach(e=>{e.update(null);e.draw();});particles.forEach(p=>{p.update();p.draw();});}
+    }
+
+    document.getElementById('startBtn').addEventListener('click',()=>{
+        document.getElementById('startScreen').classList.add('hidden');resetGame();requestAnimationFrame(gameLoop);
+    });
+    document.getElementById('restartBtn').addEventListener('click',()=>{
+        document.getElementById('gameOverScreen').classList.add('hidden');resetGame();
+    });
+
+    requestAnimationFrame(()=>{drawBackground();bubbles.forEach(b=>b.draw());});
+    </script>
+</body>
+</html>
